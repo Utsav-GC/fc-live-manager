@@ -1,0 +1,49 @@
+# Packaging config for FC Live Manager 2026 ("Setlist").
+#
+#   npm run dist:win   → NSIS installer for Windows (x64)
+#   npm run dist:mac   → .dmg + .zip for macOS (x64 + arm64 - must run on a Mac;
+#                        or push a tag and let GitHub Actions build it)
+#
+# The renderer bundle in src/renderer/dist is committed, so packaging never
+# needs a Vite build on the machine doing the pack (dist:win refreshes it first).
+
+appId: com.utsav.fclivemanager
+productName: FC Live Manager 2026
+copyright: Copyright © 2026 Utsav
+
+directories:
+  output: release
+
+files:
+  - package.json
+  - "src/**"
+  - "!src/renderer/src/**"
+  - "assets/**"
+
+asar: true
+
+# Dash-separated, versioned, platform-tagged file names for release downloads.
+artifactName: FC-Live-Manager-${version}-${os}-${arch}.${ext}
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: assets/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: FC Live Manager 2026
+
+mac:
+  category: public.app-category.music
+  icon: assets/icon.png
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]

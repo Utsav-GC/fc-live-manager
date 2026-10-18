@@ -1,0 +1,80 @@
+# Builds the Windows and macOS installers.
+#
+#   - Push a tag like `v0.1.0` → both installers are built and attached to
+#     that GitHub release automatically.
+#   - Or run this workflow by hand (Actions → Build installers → Run workflow)
+#     → the installers land as downloadable build artifacts.
+#
+# Builds are unsigned: Windows shows a SmartScreen warning ("More info → Run
+# anyway") and macOS needs a first-launch right-click → Open.
+
+name: Build installers
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: --win
+          - os: macos-latest
+            args: --mac
+    runs-on: ${{ matrix.os }}
+    env:
+      # No code-signing certificates exist in CI - build unsigned, silently.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: npm ci
+
+      # The lockfile pins win32-only native bindings (rolldown / tailwind
+      # oxide / lightningcss) as devDependencies, so a strict install fails on
+      # macOS. `--force` installs them as inert extras and lets the rest
+      # proceed; none of them are needed at package time.
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: npm ci --force
+
+      # The committed Vite bundle (src/renderer/dist) is platform-independent.
+      # Refresh it on Windows so the packaged UI can never be stale.
+      - name: Rebuild renderer bundle (Windows)
+        if: runner.os == 'Windows'
+        run: npm run build:ui
+
+      - name: Package installer
+        run: npx electron-builder ${{ matrix.args }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: error
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+          overwrite_files: true
